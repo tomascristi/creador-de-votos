@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Votos - Juntas de Vecinos</title>
+    <style>
+        /* --- ESTILOS DE LA INTERFAZ --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .controles {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 30px;
+        }
+        h2 { margin-top: 0; color: #2c3e50; text-align: center; }
+        label { font-weight: bold; margin-top: 10px; display: block; }
+        input[type="text"] {
+            width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px;
+            border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box;
+        }
+        button {
+            width: 100%; padding: 10px; font-weight: bold; border: none;
+            border-radius: 5px; cursor: pointer; transition: 0.3s; margin-bottom: 10px;
+        }
+        .btn-agregar { background-color: #3498db; color: white; }
+        .btn-agregar:hover { background-color: #2980b9; }
+        .btn-imprimir { background-color: #2ecc71; color: white; font-size: 16px; margin-top: 15px; }
+        .btn-imprimir:hover { background-color: #27ae60; }
+        
+        .lista-actual { list-style: none; padding: 0; margin-bottom: 0; }
+        .lista-actual li { background: #eee; margin: 5px 0; padding: 8px; border-radius: 4px; }
+
+        /* --- CUADRÍCULA DE 4 VOTOS POR HOJA --- */
+        .hoja-impresion {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 15px;
+            width: 100%;
+            max-width: 20cm;
+            margin: 0 auto;
+        }
+
+        .voto {
+            background: white;
+            padding: 20px;
+            border: 2px dashed #7f8c8d;
+            box-sizing: border-box;
+            height: 12.5cm; 
+            overflow: hidden; 
+        }
+
+        .voto-header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .voto-header h3 { margin: 0; font-size: 16px; text-transform: uppercase; }
+        .voto-header p { margin: 5px 0 0 0; font-size: 13px; color: #555; }
+        
+        /* --- SISTEMA DINÁMICO DE COLUMNAS PARA CANDIDATOS --- */
+        .opcion-candidato {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        
+        .numero-candidato {
+            margin-right: 5px;
+            color: #555;
+            font-weight: normal;
+        }
+        
+        .raya-voto {
+            width: 25px;
+            height: 15px;
+            border-bottom: 2px solid #000;
+            position: relative;
+        }
+        .raya-voto::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 3px;
+            height: 12px;
+            width: 2px;
+            background-color: #000;
+        }
+
+        /* Diseño para 12 a 22 candidatos (2 columnas) */
+        .listaCandidatos.columnas-2 {
+            column-count: 2;
+            column-gap: 30px; 
+            column-rule: 1px solid #bdc3c7; 
+        }
+        .listaCandidatos.columnas-2 .opcion-candidato {
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        /* Diseño para más de 22 candidatos (3 columnas) */
+        .listaCandidatos.columnas-3 {
+            column-count: 3;
+            column-gap: 20px; 
+            column-rule: 1px solid #bdc3c7; 
+        }
+        .listaCandidatos.columnas-3 .opcion-candidato {
+            font-size: 11px; 
+            margin-bottom: 8px;
+        }
+        .listaCandidatos.columnas-3 .raya-voto {
+            width: 15px; 
+        }
+
+        /* --- REGLAS ESTRICTAS DE IMPRESIÓN --- */
+        @media print {
+            @page {
+                size: letter;
+                margin: 1cm;
+            }
+            body { background: white; margin: 0; padding: 0; }
+            .controles { display: none; }
+            .hoja-impresion { max-width: none; gap: 5mm; }
+            .voto { border: 1px dashed #000; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controles">
+        <h2>🗳️ Creador de Votos</h2>
+        
+        <label>Nombre de la Junta de Vecinos:</label>
+        <input type="text" id="nombreJunta" placeholder="Ej: Villa Los Aromos" onkeyup="actualizarVista()">
+        
+        <label>Fecha de la Elección:</label>
+        <input type="text" id="fechaEleccion" placeholder="Ej: Diciembre 2026" onkeyup="actualizarVista()">
+
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+
+        <label>Agregar Candidato:</label>
+        <input type="text" id="nombreCandidato" placeholder="Nombre completo del vecino">
+        <button class="btn-agregar" onclick="agregarCandidato()">+ Añadir Candidato</button>
+        
+        <label>Candidatos actuales:</label>
+        <ul id="listaAdmin" class="lista-actual"></ul>
+
+        <button class="btn-imprimir" onclick="window.print()">🖨️ Imprimir 4 votos por hoja</button>
+    </div>
+
+    <div id="areaImpresion" class="hoja-impresion"></div>
+
+    <script>
+        let candidatos = [];
+
+        function agregarCandidato() {
+            const inputCandidato = document.getElementById('nombreCandidato');
+            const nombre = inputCandidato.value.trim();
+
+            if (nombre !== "") {
+                candidatos.push(nombre);
+                inputCandidato.value = ""; 
+                actualizarVista();
+            }
+        }
+
+        function actualizarVista() {
+            const listaAdmin = document.getElementById('listaAdmin');
+            listaAdmin.innerHTML = "";
+            
+            let htmlCandidatos = "";
+            
+            // Aquí se genera tanto la vista de administración como la del voto
+            candidatos.forEach((candidato, index) => {
+                const numero = index + 1;
+                
+                // Lista en el panel de control
+                listaAdmin.innerHTML += `<li>${numero}. ${candidato}</li>`;
+                
+                // Lista en el diseño del voto
+                htmlCandidatos += `
+                    <div class="opcion-candidato">
+                        <span><span class="numero-candidato">${numero}.</span> ${candidato}</span>
+                        <div class="raya-voto"></div>
+                    </div>
+                `;
+            });
+
+            const junta = document.getElementById('nombreJunta').value || "Nombre de Junta";
+            const fecha = document.getElementById('fechaEleccion').value || "Fecha";
+
+            let claseColumnas = "";
+            if (candidatos.length > 22) {
+                claseColumnas = "columnas-3";
+            } else if (candidatos.length > 11) {
+                claseColumnas = "columnas-2";
+            }
+
+            const plantillaUnVoto = `
+                <div class="voto">
+                    <div class="voto-header">
+                        <h3>Elección Directiva</h3>
+                        <h3>${junta}</h3>
+                        <p>${fecha}</p>
+                    </div>
+                    <div class="listaCandidatos ${claseColumnas}">
+                        ${htmlCandidatos}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('areaImpresion').innerHTML = plantillaUnVoto.repeat(4);
+        }
+
+        document.getElementById("nombreCandidato").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                agregarCandidato();
+            }
+        });
+
+        actualizarVista();
+    </script>
+
+</body>
+</html>
