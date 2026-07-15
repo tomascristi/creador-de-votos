@@ -39,8 +39,53 @@
         .btn-imprimir { background-color: #2ecc71; color: white; font-size: 16px; margin-top: 15px; }
         .btn-imprimir:hover { background-color: #27ae60; }
         
+        /* --- ESTILOS EDICIÓN/ELIMINACIÓN DE CANDIDATOS --- */
         .lista-actual { list-style: none; padding: 0; margin-bottom: 0; }
-        .lista-actual li { background: #eee; margin: 5px 0; padding: 8px; border-radius: 4px; }
+        .lista-actual li { 
+            background: #eee; 
+            margin: 8px 0; 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .num-admin {
+            font-weight: bold;
+            color: #555;
+            min-width: 20px;
+        }
+        /* Entrada de texto interna para editar */
+        .input-editar {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 14px;
+            font-family: inherit;
+            background-color: #fff;
+        }
+        .input-editar:focus {
+            border-color: #3498db;
+            outline: none;
+            background-color: #fff;
+        }
+        /* Botón eliminar */
+        .btn-eliminar {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            margin-bottom: 0; /* Anula margen de botones generales */
+            width: auto;      /* Anula ancho del 100% */
+        }
+        .btn-eliminar:hover {
+            background-color: #c0392b;
+        }
 
         /* --- CUADRÍCULA DE 4 VOTOS POR HOJA --- */
         .hoja-impresion {
@@ -149,10 +194,10 @@
         <h2>🗳️ Creador de Votos</h2>
         
         <label>Nombre de la Junta de Vecinos:</label>
-        <input type="text" id="nombreJunta" placeholder="Ej: Villa Los Aromos" onkeyup="actualizarVista()">
+        <input type="text" id="nombreJunta" placeholder="Ej: Villa Los Aromos" onkeyup="actualizarVista(false)">
         
         <label>Fecha de la Elección:</label>
-        <input type="text" id="fechaEleccion" placeholder="Ej: Diciembre 2026" onkeyup="actualizarVista()">
+        <input type="text" id="fechaEleccion" placeholder="Ej: Diciembre 2026" onkeyup="actualizarVista(false)">
 
         <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
 
@@ -160,7 +205,7 @@
         <input type="text" id="nombreCandidato" placeholder="Nombre completo del vecino">
         <button class="btn-agregar" onclick="agregarCandidato()">+ Añadir Candidato</button>
         
-        <label>Candidatos actuales:</label>
+        <label>Candidatos actuales (puedes editarlos aquí directamente):</label>
         <ul id="listaAdmin" class="lista-actual"></ul>
 
         <button class="btn-imprimir" onclick="window.print()">🖨️ Imprimir 4 votos por hoja</button>
@@ -178,24 +223,44 @@
             if (nombre !== "") {
                 candidatos.push(nombre);
                 inputCandidato.value = ""; 
-                actualizarVista();
+                actualizarVista(true); // Reconstruye la lista de administración
             }
         }
 
-        function actualizarVista() {
+        function editarCandidato(index, nuevoNombre) {
+            candidatos[index] = nuevoNombre;
+            // Actualizamos la vista de los votos, pero NO reconstruimos el panel de control.
+            // Esto evita que el input pierda el cursor (foco) mientras el usuario escribe.
+            actualizarVista(false); 
+        }
+
+        function eliminarCandidato(index) {
+            candidatos.splice(index, 1);
+            actualizarVista(true); // Reconstruye todo ya que cambió el largo de la lista
+        }
+
+        function actualizarVista(reconstruirAdmin = true) {
             const listaAdmin = document.getElementById('listaAdmin');
-            listaAdmin.innerHTML = "";
             
+            // 1. Reconstruir el panel de control sólo si es necesario (al añadir o eliminar)
+            if (reconstruirAdmin) {
+                listaAdmin.innerHTML = "";
+                candidatos.forEach((candidato, index) => {
+                    const numero = index + 1;
+                    listaAdmin.innerHTML += `
+                        <li>
+                            <span class="num-admin">${numero}.</span>
+                            <input type="text" class="input-editar" value="${candidato}" oninput="editarCandidato(${index}, this.value)">
+                            <button class="btn-eliminar" onclick="eliminarCandidato(${index})">✕</button>
+                        </li>
+                    `;
+                });
+            }
+
+            // 2. Generar el HTML de candidatos para los votos
             let htmlCandidatos = "";
-            
-            // Aquí se genera tanto la vista de administración como la del voto
             candidatos.forEach((candidato, index) => {
                 const numero = index + 1;
-                
-                // Lista en el panel de control
-                listaAdmin.innerHTML += `<li>${numero}. ${candidato}</li>`;
-                
-                // Lista en el diseño del voto
                 htmlCandidatos += `
                     <div class="opcion-candidato">
                         <span><span class="numero-candidato">${numero}.</span> ${candidato}</span>
@@ -204,9 +269,11 @@
                 `;
             });
 
+            // 3. Obtener textos del encabezado
             const junta = document.getElementById('nombreJunta').value || "Nombre de Junta";
             const fecha = document.getElementById('fechaEleccion').value || "Fecha";
 
+            // 4. Determinar columnas del voto según cantidad de candidatos
             let claseColumnas = "";
             if (candidatos.length > 22) {
                 claseColumnas = "columnas-3";
@@ -214,6 +281,7 @@
                 claseColumnas = "columnas-2";
             }
 
+            // 5. Crear la plantilla final
             const plantillaUnVoto = `
                 <div class="voto">
                     <div class="voto-header">
@@ -230,6 +298,7 @@
             document.getElementById('areaImpresion').innerHTML = plantillaUnVoto.repeat(4);
         }
 
+        // Detectar tecla ENTER para agregar candidato de manera fluida
         document.getElementById("nombreCandidato").addEventListener("keypress", function(event) {
             if (event.key === "Enter") {
                 event.preventDefault();
@@ -237,7 +306,8 @@
             }
         });
 
-        actualizarVista();
+        // Inicialización
+        actualizarVista(true);
     </script>
 
 </body>
